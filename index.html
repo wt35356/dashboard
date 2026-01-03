@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>RSI Scanner Dashboard</title>
+  <style>
+    body { font-family: Arial; padding: 20px; }
+    .ok { color: green; font-weight: bold; }
+    .bad { color: red; font-weight: bold; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px; }
+  </style>
+</head>
+<body>
+
+<h1>RSI Divergence Scanner</h1>
+
+<p>Status:
+{% if healthy %}
+  <span class="ok">RUNNING</span>
+{% else %}
+  <span class="bad">STALE</span>
+{% endif %}
+</p>
+
+<p>Last run: {{ status.last_run if status else "N/A" }}</p>
+
+<h2>Recent Alerts</h2>
+
+<table>
+<tr>
+  <th>Time</th>
+  <th>Symbol</th>
+  <th>Type</th>
+  <th>Price</th>
+  <th>Rating</th>
+</tr>
+
+{% for a in alerts %}
+<tr>
+  <td>{{ a.signal_time }}</td>
+  <td>{{ a.symbol }}</td>
+  <td>{{ a.type }}</td>
+  <td>{{ "%.2f"|format(a.price) if a.price else "" }}</td>
+  <td>{{ a.rating }}</td>
+</tr>
+{% endfor %}
+</table>
+
+</body>
+</html>
