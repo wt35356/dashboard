@@ -2,14 +2,97 @@
 <html>
 <head>
   <title>RSI Scanner Dashboard</title>
+
   <style>
-    body { font-family: Arial; padding: 20px; }
-    .ok { color: green; font-weight: bold; }
-    .bad { color: red; font-weight: bold; }
-    table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #fafafa;
+    }
+
+    h1 { margin-bottom: 5px; }
+
+    /* ===== STATUS ===== */
+    .ok { color: #1a7f37; font-weight: bold; }
+    .bad { color: #b42318; font-weight: bold; }
+
+    /* ===== SUMMARY ===== */
+    .summary {
+      display: flex;
+      gap: 30px;
+      margin: 15px 0 25px 0;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .summary div {
+      font-size: 14px;
+    }
+
+    /* ===== FILTERS ===== */
+    .filters {
+      margin: 15px 0;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
+
+    .filters label {
+      margin-right: 6px;
+      font-weight: bold;
+    }
+
+    .filters input,
+    .filters select {
+      margin-right: 15px;
+      padding: 4px;
+    }
+
+    /* ===== TABLE ===== */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      background: #ffffff;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background: #f0f0f0;
+    }
+
+    /* ===== TYPE COLORS ===== */
+    .bull {
+      color: #1a7f37;
+      font-weight: bold;
+    }
+
+    .bear {
+      color: #b42318;
+      font-weight: bold;
+    }
+
+    /* ===== RATING VISUAL ===== */
+    .r1 { opacity: 0.4; }
+    .r2 { opacity: 0.6; }
+    .r3 { opacity: 0.75; }
+    .r4 { opacity: 0.9; }
+    .r5 { font-weight: bold; }
+
+    /* ===== RECENCY ===== */
+    .recent {
+      font-weight: bold;
+    }
   </style>
 </head>
+
 <body>
 
 <h1>RSI Divergence Scanner</h1>
@@ -22,7 +105,53 @@
 {% endif %}
 </p>
 
-<p>Last run: {{ status.last_run if status else "N/A" }}</p>
+<p>Last run:
+{% if last_run %}
+  {{ last_run }}
+{% else %}
+  N/A
+{% endif %}
+</p>
+
+<!-- ===== SUMMARY PANEL ===== -->
+<div class="summary">
+  <div>
+    <strong>Total alerts:</strong> {{ alerts|length }}
+  </div>
+  <div>
+    <strong>BULL:</strong>
+    {{ alerts | selectattr("type", "equalto", "BULL") | list | length }}
+  </div>
+  <div>
+    <strong>BEAR:</strong>
+    {{ alerts | selectattr("type", "equalto", "BEAR") | list | length }}
+  </div>
+</div>
+
+<!-- ===== FILTERS (URL-BASED) ===== -->
+<div class="filters">
+  <form method="get">
+    <label>Hours:</label>
+    <select name="hours">
+      <option value="">All</option>
+      <option value="6">6</option>
+      <option value="12">12</option>
+      <option value="24">24</option>
+    </select>
+
+    <label>Symbol:</label>
+    <input type="text" name="symbol" placeholder="AMD">
+
+    <label>Type:</label>
+    <select name="type">
+      <option value="">All</option>
+      <option value="BULL">BULL</option>
+      <option value="BEAR">BEAR</option>
+    </select>
+
+    <button type="submit">Apply</button>
+  </form>
+</div>
 
 <h2>Recent Alerts</h2>
 
@@ -37,11 +166,26 @@
 
 {% for a in alerts %}
 <tr>
-  <td>{{ a.signal_time }}</td>
+  <!-- Time (bold if < 1h old) -->
+  <td class="{% if last_run and (last_run - a.signal_time).total_seconds() < 3600 %}recent{% endif %}">
+    {{ a.signal_time }}
+  </td>
+
   <td>{{ a.symbol }}</td>
-  <td>{{ a.type }}</td>
-  <td>{{ "%.2f"|format(a.price) if a.price else "" }}</td>
-  <td>{{ a.rating }}</td>
+
+  <!-- Type coloring -->
+  <td class="{{ 'bull' if a.type == 'BULL' else 'bear' }}">
+    {{ a.type }}
+  </td>
+
+  <td>
+    {{ "%.2f"|format(a.price) if a.price is not none }}
+  </td>
+
+  <!-- Rating emphasis -->
+  <td class="r{{ a.rating|int }}">
+    {{ a.rating }}
+  </td>
 </tr>
 {% endfor %}
 </table>
