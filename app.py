@@ -32,23 +32,27 @@ def index():
             cursor_factory=psycopg2.extras.RealDictCursor
         ) as cur:
 
-            # --- scanner status (single row) ---
+            # --- scanner status ---
             cur.execute("SELECT * FROM scanner_status LIMIT 1")
             status = cur.fetchone()
 
-            # --- alerts: latest per symbol + direction ---
+            # --- alerts: latest per symbol/type, sorted newest → oldest ---
             cur.execute("""
-                SELECT DISTINCT ON (symbol, type)
-                    symbol,
-                    type,
-                    signal_time,
-                    price,
-                    rating
-                FROM alerts
-                ORDER BY
-                    symbol,
-                    type,
-                    signal_time DESC
+                SELECT *
+                FROM (
+                    SELECT DISTINCT ON (symbol, type)
+                        symbol,
+                        type,
+                        signal_time,
+                        price,
+                        rating
+                    FROM alerts
+                    ORDER BY
+                        symbol,
+                        type,
+                        signal_time DESC
+                ) t
+                ORDER BY signal_time DESC
                 LIMIT 25
             """)
             alerts = cur.fetchall()
@@ -61,7 +65,6 @@ def index():
     if status and status.get("last_run"):
         last_run = status["last_run"]
 
-        # Safety: DATE → TIMESTAMP (legacy)
         if isinstance(last_run, date) and not isinstance(last_run, datetime):
             last_run = datetime.combine(
                 last_run,
