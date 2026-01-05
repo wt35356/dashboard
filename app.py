@@ -7,23 +7,36 @@ from jinja2 import Template
 
 app = Flask(__name__)
 
+# ================= CONFIG =================
 DATABASE_URL = os.environ["DATABASE_URL"]
 
+# ================= DB ====================
 def get_conn():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
 
+# ================= RENDER =================
 def render_index(**context):
-    with open("index.html", "r", encoding="utf-8") as f:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "index.html")
+
+    with open(path, "r", encoding="utf-8") as f:
         template = Template(f.read())
+
     return template.render(**context)
 
+# ================= ROUTES =================
 @app.route("/")
 def index():
     with get_conn() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        with conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) as cur:
+
+            # Scanner status (exactly one row)
             cur.execute("SELECT * FROM scanner_status LIMIT 1")
             status = cur.fetchone()
 
+            # Recent alerts (read-only)
             cur.execute("""
                 SELECT symbol, type, signal_time, price, rating
                 FROM alerts
