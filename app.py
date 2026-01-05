@@ -10,7 +10,7 @@ app = Flask(__name__)
 # ================= CONFIG =================
 DATABASE_URL = os.environ["DATABASE_URL"]
 
-# ================= DB ====================
+# ================= DB =====================
 def get_conn():
     return psycopg2.connect(DATABASE_URL, sslmode="require")
 
@@ -32,28 +32,36 @@ def index():
             cursor_factory=psycopg2.extras.RealDictCursor
         ) as cur:
 
-            # Scanner status (exactly one row)
+            # --- scanner status (single row) ---
             cur.execute("SELECT * FROM scanner_status LIMIT 1")
             status = cur.fetchone()
 
-            # Recent alerts (read-only)
+            # --- alerts: latest per symbol + direction ---
             cur.execute("""
-                SELECT symbol, type, signal_time, price, rating
+                SELECT DISTINCT ON (symbol, type)
+                    symbol,
+                    type,
+                    signal_time,
+                    price,
+                    rating
                 FROM alerts
-                ORDER BY signal_time DESC
+                ORDER BY
+                    symbol,
+                    type,
+                    signal_time DESC
                 LIMIT 25
             """)
             alerts = cur.fetchall()
 
+    # ================= HEALTH LOGIC =================
     now = datetime.now(timezone.utc)
-
     healthy = False
     last_run = None
 
     if status and status.get("last_run"):
         last_run = status["last_run"]
 
-        # Handle DATE vs TIMESTAMP safely
+        # Safety: DATE → TIMESTAMP (legacy)
         if isinstance(last_run, date) and not isinstance(last_run, datetime):
             last_run = datetime.combine(
                 last_run,
@@ -61,7 +69,7 @@ def index():
                 tzinfo=timezone.utc
             )
 
-        healthy = (now - last_run).total_seconds() < 900  # 15 min
+        healthy = (now - last_run).total_seconds() < 900  # 15 minutes
 
     return render_index(
         healthy=healthy,
