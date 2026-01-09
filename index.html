@@ -4,31 +4,16 @@
   <title>RSI Scanner Dashboard</title>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #fafafa;
-    }
-
+    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
     h1 { margin-bottom: 5px; }
 
     .ok { color: #1a7f37; font-weight: bold; }
     .bad { color: #b42318; font-weight: bold; }
 
-    .summary {
-      display: flex;
-      gap: 30px;
-      margin: 15px 0 25px 0;
-      padding: 12px;
-      background: #ffffff;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-    }
-
     table {
       border-collapse: collapse;
       width: 100%;
-      background: #ffffff;
+      background: #fff;
       margin-bottom: 25px;
     }
 
@@ -41,15 +26,13 @@
 
     .bull { color: #1a7f37; font-weight: bold; }
     .bear { color: #b42318; font-weight: bold; }
-
     .pos { color: #1a7f37; font-weight: bold; }
     .neg { color: #b42318; font-weight: bold; }
 
     .pagination {
-      margin: 15px 0;
+      margin-top: 15px;
       display: flex;
       gap: 10px;
-      align-items: center;
     }
 
     .pagination a {
@@ -58,10 +41,6 @@
       background: #fff;
       text-decoration: none;
       color: #333;
-    }
-
-    .pagination strong {
-      padding: 6px 10px;
     }
   </style>
 </head>
@@ -80,29 +59,24 @@
 
 <p>Last run: {{ last_run if last_run else "N/A" }}</p>
 
-<!-- ================= SUMMARY ================= -->
-<div class="summary">
-  <div><strong>Total alerts (page):</strong> {{ alerts|length }}</div>
-</div>
-
 <!-- ================= FILTERS ================= -->
 <form method="get">
   <label>Symbol:</label>
-  <input type="text" name="symbol" value="{{ request.args.get('symbol','') }}">
+  <input name="symbol" value="{{ symbol }}">
 
   <label>Type:</label>
   <select name="type">
     <option value="">All</option>
-    <option value="BULL" {% if request.args.get('type')=='BULL' %}selected{% endif %}>BULL</option>
-    <option value="BEAR" {% if request.args.get('type')=='BEAR' %}selected{% endif %}>BEAR</option>
+    <option value="BULL" {% if type_filter=="BULL" %}selected{% endif %}>BULL</option>
+    <option value="BEAR" {% if type_filter=="BEAR" %}selected{% endif %}>BEAR</option>
   </select>
 
   <label>Hours:</label>
   <select name="hours">
     <option value="">All</option>
-    {% for h in [6,12,24] %}
-      <option value="{{h}}" {% if request.args.get('hours')==h|string %}selected{% endif %}>{{h}}</option>
-    {% endfor %}
+    <option value="6" {% if hours==6 %}selected{% endif %}>6</option>
+    <option value="12" {% if hours==12 %}selected{% endif %}>12</option>
+    <option value="24" {% if hours==24 %}selected{% endif %}>24</option>
   </select>
 
   <button type="submit">Apply</button>
@@ -161,15 +135,15 @@
 
 <!-- ================= PAGINATION ================= -->
 <div class="pagination">
-  {% if page > 1 %}
-    <a href="{{ request.path }}?{{ request.query_string.decode().replace('page=' ~ page, 'page=' ~ (page-1)) }}">Prev</a>
-  {% endif %}
+{% if page > 1 %}
+  <a href="?page={{ page-1 }}&symbol={{ symbol }}&type={{ type_filter }}&hours={{ hours }}">Prev</a>
+{% endif %}
 
-  <strong>Page {{ page }} / {{ total_pages }}</strong>
+<strong>Page {{ page }} / {{ total_pages }}</strong>
 
-  {% if page < total_pages %}
-    <a href="{{ request.path }}?{{ request.query_string.decode().replace('page=' ~ page, 'page=' ~ (page+1)) }}">Next</a>
-  {% endif %}
+{% if page < total_pages %}
+  <a href="?page={{ page+1 }}&symbol={{ symbol }}&type={{ type_filter }}&hours={{ hours }}">Next</a>
+{% endif %}
 </div>
 
 </body>
