@@ -1,10 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>RSI Scanner Dashboard</title>
+  <title>RSI Divergence Scanner</title>
 
   <style>
-    body { font-family: Arial, sans-serif; padding: 20px; background: #fafafa; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #fafafa;
+    }
+
     h1 { margin-bottom: 5px; }
 
     .ok { color: #1a7f37; font-weight: bold; }
@@ -13,19 +18,21 @@
     table {
       border-collapse: collapse;
       width: 100%;
-      background: #fff;
-      margin-bottom: 25px;
+      background: #ffffff;
+      margin-bottom: 20px;
     }
 
     th, td {
       border: 1px solid #ddd;
       padding: 8px;
+      text-align: left;
     }
 
     th { background: #f0f0f0; }
 
     .bull { color: #1a7f37; font-weight: bold; }
     .bear { color: #b42318; font-weight: bold; }
+
     .pos { color: #1a7f37; font-weight: bold; }
     .neg { color: #b42318; font-weight: bold; }
 
@@ -33,6 +40,7 @@
       margin-top: 15px;
       display: flex;
       gap: 10px;
+      align-items: center;
     }
 
     .pagination a {
@@ -82,56 +90,53 @@
   <button type="submit">Apply</button>
 </form>
 
-<!-- ================= PERFORMANCE ================= -->
-<h2>Latest Performance</h2>
+<!-- ================= ALERTS + PERFORMANCE ================= -->
+<h2>Alerts & Performance</h2>
 
-{% if performance %}
-<table>
-<tr>
-  <th>Symbol</th>
-  <th>Type</th>
-  <th>Entry</th>
-  <th>Exit</th>
-  <th>Return %</th>
-</tr>
-{% for p in performance %}
-<tr>
-  <td>{{ p.symbol }}</td>
-  <td class="{{ 'bull' if p.type=='BULL' else 'bear' }}">{{ p.type }}</td>
-  <td>{{ "%.2f"|format(p.entry_price) }}</td>
-  <td>{{ "%.2f"|format(p.exit_price) }}</td>
-  <td class="{{ 'pos' if p.return_pct>0 else 'neg' }}">
-    {{ "%.2f"|format(p.return_pct) }}
-  </td>
-</tr>
-{% endfor %}
-</table>
-{% else %}
-<p><em>No performance data yet.</em></p>
-{% endif %}
-
-<!-- ================= ALERTS ================= -->
-<h2>All Alerts</h2>
-
+{% if rows %}
 <table>
 <tr>
   <th>Time</th>
   <th>Symbol</th>
   <th>Type</th>
-  <th>Price</th>
+  <th>Entry</th>
   <th>Rating</th>
+  <th>1h %</th>
+  <th>4h %</th>
+  <th>24h %</th>
 </tr>
 
-{% for a in alerts %}
+{% for r in rows %}
 <tr>
-  <td>{{ a.signal_time }}</td>
-  <td>{{ a.symbol }}</td>
-  <td class="{{ 'bull' if a.type=='BULL' else 'bear' }}">{{ a.type }}</td>
-  <td>{{ "%.2f"|format(a.price) }}</td>
-  <td>{{ a.rating }}</td>
+  <td>{{ r.signal_time }}</td>
+
+  <td>{{ r.symbol }}</td>
+
+  <td class="{{ 'bull' if r.type=='BULL' else 'bear' }}">
+    {{ r.type }}
+  </td>
+
+  <td>{{ "%.2f"|format(r.entry_price) }}</td>
+
+  <td>{{ r.rating }}</td>
+
+  <td class="{{ 'pos' if r.return_1h is not none and r.return_1h > 0 else 'neg' }}">
+    {{ "%.2f"|format(r.return_1h) if r.return_1h is not none else "-" }}
+  </td>
+
+  <td class="{{ 'pos' if r.return_4h is not none and r.return_4h > 0 else 'neg' }}">
+    {{ "%.2f"|format(r.return_4h) if r.return_4h is not none else "-" }}
+  </td>
+
+  <td class="{{ 'pos' if r.return_24h is not none and r.return_24h > 0 else 'neg' }}">
+    {{ "%.2f"|format(r.return_24h) if r.return_24h is not none else "-" }}
+  </td>
 </tr>
 {% endfor %}
 </table>
+{% else %}
+<p><em>No alerts found.</em></p>
+{% endif %}
 
 <!-- ================= PAGINATION ================= -->
 <div class="pagination">
