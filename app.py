@@ -1,15 +1,17 @@
 import os
+import math
 import psycopg2
 import psycopg2.extras
-from flask import Flask
+from flask import Flask, request
 from datetime import datetime, timezone, date
 from jinja2 import Template
 
 # ================= APP =================
-app = Flask(__name__)   # <<< MUST BE BEFORE @app.route
+app = Flask(__name__)
 
 # ================= CONFIG =================
 DATABASE_URL = os.environ["DATABASE_URL"]
+PAGE_SIZE = 20
 
 # ================= DB =====================
 def get_conn():
@@ -23,39 +25,73 @@ def render_index(**context):
     with open(path, "r", encoding="utf-8") as f:
         template = Template(f.read())
 
-    return template.render(**context)
+    # IMPORTANT: explicitly pass request
+    return template.render(request=request, **context)
 
 # ================= ROUTES =================
 @app.route("/")
 def index():
-    with get_conn() as conn:
-        with conn.cursor(
-            cursor_factory=psycopg2.extras.RealDictCursor
-        ) as cur:
 
-            # --- scanner status ---
+    # -------- URL params --------
+    symbol = request.args.get("symbol")
+    side = request.args.get("type")
+    hours = request.args.get("hours", type=int)
+    page = max(request.args.get("page", 1, type=int), 1)
+
+    offset = (page - 1) * PAGE_SIZE
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+
+            # -------- scanner status --------
             cur.execute("SELECT * FROM scanner_status LIMIT 1")
             status = cur.fetchone()
 
-            # --- alerts ---
-            cur.execute("""
-                SELECT *
-                FROM (
-                    SELECT DISTINCT ON (symbol, type)
-                        symbol,
-                        type,
-                        signal_time,
-                        price,
-                        rating
-                    FROM alerts
-                    ORDER BY symbol, type, signal_time DESC
-                ) t
+            # -------- WHERE builder --------
+            where = []
+            params = {}
+
+            if symbol:
+                where.append("symbol ILIKE %(symbol)s")
+                params["symbol"] = f"%{symbol}%"
+
+            if side:
+                where.append("type = %(type)s")
+                params["type"] = side
+
+            if hours:
+                where.append("signal_time >= NOW() - INTERVAL '%(hours)s hours'")
+                params["hours"] = hours
+
+            where_sql = "WHERE " + " AND ".join(where) if where else ""
+
+            # -------- total alerts (for pagination) --------
+            cur.execute(
+                f"SELECT COUNT(*) FROM alerts {where_sql}",
+                params
+            )
+            total_alerts = cur.fetchone()["count"]
+            total_pages = max(math.ceil(total_alerts / PAGE_SIZE), 1)
+
+            # -------- paginated alerts --------
+            cur.execute(
+                f"""
+                SELECT
+                    symbol,
+                    type,
+                    signal_time,
+                    price,
+                    rating
+                FROM alerts
+                {where_sql}
                 ORDER BY signal_time DESC
-                LIMIT 25
-            """)
+                LIMIT %(limit)s OFFSET %(offset)s
+                """,
+                {**params, "limit": PAGE_SIZE, "offset": offset}
+            )
             alerts = cur.fetchall()
 
-            # --- performance ---
+            # -------- latest performance --------
             cur.execute("""
                 SELECT
                     symbol,
@@ -67,39 +103,19 @@ def index():
                     exit_time
                 FROM alert_performance
                 ORDER BY exit_time DESC
-                LIMIT 25
+                LIMIT 20
             """)
             performance = cur.fetchall()
 
-            cur.execute("""
-                SELECT
-                    rating,
-                    COUNT(*) AS n,
-                    ROUND(AVG(return_pct)::numeric, 2) AS avg_return,
-                    ROUND(
-                        SUM(CASE WHEN return_pct > 0 THEN 1 ELSE 0 END)::numeric
-                        / COUNT(*),
-                        2
-                    ) AS hit_rate
-                FROM alert_performance
-                GROUP BY rating
-                ORDER BY rating
-            """)
-            perf_by_rating = cur.fetchall()
-
-    # ================= HEALTH =================
-    now = datetime.now(timezone.utc)
+    # -------- health --------
     healthy = False
     last_run = None
+    now = datetime.now(timezone.utc)
 
     if status and status.get("last_run"):
         last_run = status["last_run"]
         if isinstance(last_run, date) and not isinstance(last_run, datetime):
-            last_run = datetime.combine(
-                last_run,
-                datetime.min.time(),
-                tzinfo=timezone.utc
-            )
+            last_run = datetime.combine(last_run, datetime.min.time(), tzinfo=timezone.utc)
         healthy = (now - last_run).total_seconds() < 900
 
     return render_index(
@@ -107,7 +123,11 @@ def index():
         last_run=last_run,
         alerts=alerts,
         performance=performance,
-        perf_by_rating=perf_by_rating,
+        page=page,
+        total_pages=total_pages,
+        symbol=symbol or "",
+        type_filter=side or "",
+        hours=hours or ""
     )
 
 @app.route("/health")
