@@ -12,11 +12,9 @@
 
     h1 { margin-bottom: 5px; }
 
-    /* ===== STATUS ===== */
     .ok { color: #1a7f37; font-weight: bold; }
     .bad { color: #b42318; font-weight: bold; }
 
-    /* ===== SUMMARY ===== */
     .summary {
       display: flex;
       gap: 30px;
@@ -27,68 +25,43 @@
       border-radius: 6px;
     }
 
-    .summary div {
-      font-size: 14px;
-    }
-
-    /* ===== FILTERS ===== */
-    .filters {
-      margin: 15px 0;
-      padding: 12px;
-      background: #ffffff;
-      border: 1px solid #ddd;
-      border-radius: 6px;
-    }
-
-    .filters label {
-      margin-right: 6px;
-      font-weight: bold;
-    }
-
-    .filters input,
-    .filters select {
-      margin-right: 15px;
-      padding: 4px;
-    }
-
-    /* ===== TABLE ===== */
     table {
       border-collapse: collapse;
       width: 100%;
       background: #ffffff;
+      margin-bottom: 25px;
     }
 
     th, td {
       border: 1px solid #ddd;
       padding: 8px;
-      text-align: left;
     }
 
-    th {
-      background: #f0f0f0;
+    th { background: #f0f0f0; }
+
+    .bull { color: #1a7f37; font-weight: bold; }
+    .bear { color: #b42318; font-weight: bold; }
+
+    .pos { color: #1a7f37; font-weight: bold; }
+    .neg { color: #b42318; font-weight: bold; }
+
+    .pagination {
+      margin: 15px 0;
+      display: flex;
+      gap: 10px;
+      align-items: center;
     }
 
-    /* ===== TYPE COLORS ===== */
-    .bull {
-      color: #1a7f37;
-      font-weight: bold;
+    .pagination a {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      background: #fff;
+      text-decoration: none;
+      color: #333;
     }
 
-    .bear {
-      color: #b42318;
-      font-weight: bold;
-    }
-
-    /* ===== RATING VISUAL ===== */
-    .r1 { opacity: 0.4; }
-    .r2 { opacity: 0.6; }
-    .r3 { opacity: 0.75; }
-    .r4 { opacity: 0.9; }
-    .r5 { font-weight: bold; }
-
-    /* ===== RECENCY ===== */
-    .recent {
-      font-weight: bold;
+    .pagination strong {
+      padding: 6px 10px;
     }
   </style>
 </head>
@@ -105,55 +78,66 @@
 {% endif %}
 </p>
 
-<p>Last run:
-{% if last_run %}
-  {{ last_run }}
-{% else %}
-  N/A
-{% endif %}
-</p>
+<p>Last run: {{ last_run if last_run else "N/A" }}</p>
 
-<!-- ===== SUMMARY PANEL ===== -->
+<!-- ================= SUMMARY ================= -->
 <div class="summary">
-  <div>
-    <strong>Total alerts:</strong> {{ alerts|length }}
-  </div>
-  <div>
-    <strong>BULL:</strong>
-    {{ alerts | selectattr("type", "equalto", "BULL") | list | length }}
-  </div>
-  <div>
-    <strong>BEAR:</strong>
-    {{ alerts | selectattr("type", "equalto", "BEAR") | list | length }}
-  </div>
+  <div><strong>Total alerts (page):</strong> {{ alerts|length }}</div>
 </div>
 
-<!-- ===== FILTERS (URL-BASED) ===== -->
-<div class="filters">
-  <form method="get">
-    <label>Hours:</label>
-    <select name="hours">
-      <option value="">All</option>
-      <option value="6">6</option>
-      <option value="12">12</option>
-      <option value="24">24</option>
-    </select>
+<!-- ================= FILTERS ================= -->
+<form method="get">
+  <label>Symbol:</label>
+  <input type="text" name="symbol" value="{{ request.args.get('symbol','') }}">
 
-    <label>Symbol:</label>
-    <input type="text" name="symbol" placeholder="AMD">
+  <label>Type:</label>
+  <select name="type">
+    <option value="">All</option>
+    <option value="BULL" {% if request.args.get('type')=='BULL' %}selected{% endif %}>BULL</option>
+    <option value="BEAR" {% if request.args.get('type')=='BEAR' %}selected{% endif %}>BEAR</option>
+  </select>
 
-    <label>Type:</label>
-    <select name="type">
-      <option value="">All</option>
-      <option value="BULL">BULL</option>
-      <option value="BEAR">BEAR</option>
-    </select>
+  <label>Hours:</label>
+  <select name="hours">
+    <option value="">All</option>
+    {% for h in [6,12,24] %}
+      <option value="{{h}}" {% if request.args.get('hours')==h|string %}selected{% endif %}>{{h}}</option>
+    {% endfor %}
+  </select>
 
-    <button type="submit">Apply</button>
-  </form>
-</div>
+  <button type="submit">Apply</button>
+</form>
 
-<h2>Recent Alerts</h2>
+<!-- ================= PERFORMANCE ================= -->
+<h2>Latest Performance</h2>
+
+{% if performance %}
+<table>
+<tr>
+  <th>Symbol</th>
+  <th>Type</th>
+  <th>Entry</th>
+  <th>Exit</th>
+  <th>Return %</th>
+</tr>
+{% for p in performance %}
+<tr>
+  <td>{{ p.symbol }}</td>
+  <td class="{{ 'bull' if p.type=='BULL' else 'bear' }}">{{ p.type }}</td>
+  <td>{{ "%.2f"|format(p.entry_price) }}</td>
+  <td>{{ "%.2f"|format(p.exit_price) }}</td>
+  <td class="{{ 'pos' if p.return_pct>0 else 'neg' }}">
+    {{ "%.2f"|format(p.return_pct) }}
+  </td>
+</tr>
+{% endfor %}
+</table>
+{% else %}
+<p><em>No performance data yet.</em></p>
+{% endif %}
+
+<!-- ================= ALERTS ================= -->
+<h2>All Alerts</h2>
 
 <table>
 <tr>
@@ -166,29 +150,27 @@
 
 {% for a in alerts %}
 <tr>
-  <!-- Time (bold if < 1h old) -->
-  <td class="{% if last_run and (last_run - a.signal_time).total_seconds() < 3600 %}recent{% endif %}">
-    {{ a.signal_time }}
-  </td>
-
+  <td>{{ a.signal_time }}</td>
   <td>{{ a.symbol }}</td>
-
-  <!-- Type coloring -->
-  <td class="{{ 'bull' if a.type == 'BULL' else 'bear' }}">
-    {{ a.type }}
-  </td>
-
-  <td>
-    {{ "%.2f"|format(a.price) if a.price is not none }}
-  </td>
-
-  <!-- Rating emphasis -->
-  <td class="r{{ a.rating|int }}">
-    {{ a.rating }}
-  </td>
+  <td class="{{ 'bull' if a.type=='BULL' else 'bear' }}">{{ a.type }}</td>
+  <td>{{ "%.2f"|format(a.price) }}</td>
+  <td>{{ a.rating }}</td>
 </tr>
 {% endfor %}
 </table>
+
+<!-- ================= PAGINATION ================= -->
+<div class="pagination">
+  {% if page > 1 %}
+    <a href="{{ request.path }}?{{ request.query_string.decode().replace('page=' ~ page, 'page=' ~ (page-1)) }}">Prev</a>
+  {% endif %}
+
+  <strong>Page {{ page }} / {{ total_pages }}</strong>
+
+  {% if page < total_pages %}
+    <a href="{{ request.path }}?{{ request.query_string.decode().replace('page=' ~ page, 'page=' ~ (page+1)) }}">Next</a>
+  {% endif %}
+</div>
 
 </body>
 </html>
