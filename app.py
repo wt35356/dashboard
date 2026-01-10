@@ -25,7 +25,6 @@ def render_index(**context):
     with open(path, "r", encoding="utf-8") as f:
         template = Template(f.read())
 
-    # IMPORTANT: explicitly pass request
     return template.render(request=request, **context)
 
 # ================= ROUTES =================
@@ -47,7 +46,7 @@ def index():
             cur.execute("SELECT * FROM scanner_status LIMIT 1")
             status = cur.fetchone()
 
-            # -------- WHERE builder (alerts table) --------
+            # -------- WHERE builder --------
             where = []
             params = {}
 
@@ -65,7 +64,7 @@ def index():
 
             where_sql = "WHERE " + " AND ".join(where) if where else ""
 
-            # -------- total alerts (for pagination) --------
+            # -------- total alerts (pagination) --------
             cur.execute(
                 f"SELECT COUNT(*) FROM alerts a {where_sql}",
                 params
@@ -73,7 +72,7 @@ def index():
             total_alerts = cur.fetchone()["count"]
             total_pages = max(math.ceil(total_alerts / PAGE_SIZE), 1)
 
-            # -------- combined alerts + performance --------
+            # -------- alerts + performance --------
             cur.execute(
                 f"""
                 SELECT
@@ -82,6 +81,8 @@ def index():
                     a.type,
                     a.price AS entry_price,
                     a.rating,
+                    a.edge,
+                    a.time_profile,
 
                     p1.return_pct  AS return_1h,
                     p4.return_pct  AS return_4h,
@@ -111,6 +112,11 @@ def index():
 
             rows = cur.fetchall()
 
+    # -------- format timestamps --------
+    for r in rows:
+        if r.get("signal_time"):
+            r["signal_time"] = r["signal_time"].strftime("%Y-%m-%d %H:%M")
+
     # -------- health --------
     healthy = False
     last_run = None
@@ -130,7 +136,7 @@ def index():
         healthy=healthy,
         last_run=last_run,
 
-        # combined table rows
+        # table rows
         rows=rows,
 
         # pagination
